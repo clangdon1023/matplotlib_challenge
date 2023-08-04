@@ -1,0 +1,337 @@
+# Pymaceuticals Inc.
+---
+
+### Analysis
+
+- There are 10 drugs that have been tested on the mouse subjects in a fairly equal male (51%) to female (49%) as referenced in the pie chart below
+- Capolmulin and Ramicane seem to result in the lowest final tumor volumne, Ramicane has a slightly lower standard deviation 
+- Case study on mouse ID I509 showed tumor improvement over time. The subject was using the drug Capolmulin
+
+# Dependencies and Setup
+import matplotlib.pyplot as plt
+import pandas as pd
+import scipy.stats as st
+import numpy as np
+
+# Study data files
+mouse_metadata_path = "data/Mouse_metadata.csv"
+study_results_path = "data/Study_results.csv"
+
+# Read the mouse data and the study results
+mouse_metadata = pd.read_csv(mouse_metadata_path)
+study_results = pd.read_csv(study_results_path)
+
+# Combine the data into a single DataFrame
+MickyDF = pd.merge(study_results, mouse_metadata, on=["Mouse ID"] )
+# Display the data table for preview
+MickyDF.head()
+
+# Checking the number of mice.
+count_mice = len(MickyDF["Mouse ID"].unique())
+count_mice
+
+# Our data should be uniquely identified by Mouse ID and Timepoint
+# Get the duplicate mice by ID number that shows up for Mouse ID and Timepoint. 
+duplicateRows = MickyDF[MickyDF.duplicated(['Mouse ID', 'Timepoint'])]
+duplicateRows
+
+# Optional: Get all the data for the duplicate mouse ID. 
+df = MickyDF.set_index("Mouse ID")
+df.head()
+g989 = df.loc["g989"]
+g989
+
+# Create a clean DataFrame by dropping the duplicate mouse by its ID.
+MinnieDF = MickyDF[MickyDF['Mouse ID'] != 'g989']
+MinnieDF
+
+# Checking the number of mice in the clean DataFrame.
+clean_mice = len(MinnieDF["Mouse ID"].unique())
+clean_mice
+
+## Summary Statistics
+
+#Group By
+GroupMeds = MinnieDF.groupby('Drug Regimen')
+GroupMeds
+
+#Calculate Mean
+TumorMean = GroupMeds['Tumor Volume (mm3)'].mean()
+TumorMean
+
+#Calculate Median
+TumorMedian = GroupMeds['Tumor Volume (mm3)'].median()
+TumorMedian
+
+#Calculate Standard Deviation
+TumorSTD = GroupMeds['Tumor Volume (mm3)'].std()
+TumorSTD
+
+#Calculate SEM
+TumorSEM = GroupMeds['Tumor Volume (mm3)'].sem()
+TumorSEM
+
+# Generate a summary statistics table of mean, median, variance, standard deviation, and SEM of the tumor volume for each regimen
+
+# Use groupby and summary statistical methods to calculate the following properties of each drug regimen: 
+# mean, median, variance, standard deviation, and SEM of the tumor volume. 
+# Assemble the resulting series into a single summary DataFrame.
+Summary_Table = pd.DataFrame({'Mean Tumor Vol': TumorMean,
+    'Median Tumor Vol': TumorMedian,
+    'Tumor Vol Var': TumorVariance,
+    'Tumor Vol Std Dev.': TumorSTD,
+    'Tumor Vol Std. Err.': TumorSEM})
+print(Summary_Table)
+
+# A more advanced method to generate a summary statistics table of mean, median, variance, standard deviation,
+# and SEM of the tumor volume for each regimen (only one method is required in the solution)
+
+# Using the aggregation method, produce the same summary statistics in a single line.
+Summary_Table = GroupMeds['Tumor Volume (mm3)'].agg(['mean', 'median', 'var', 'std', 'sem'])
+Summary_Aggie = Summary_Table.rename(columns={
+    'Mean Tumor Vol':'mean',
+    'Median Tumor Vol': 'median',
+    'Tumor Vol Var': 'variance',
+    'Tumor Vol Std. Dev.': 'standard deviation',
+    'Tumor Vol Std. Err.': 'SEM'
+})
+
+Summary_Aggie
+
+
+## Bar and Pie Charts
+
+# calculate the number of Mice per drug
+Mice_Drugs = GroupMeds["Mouse ID"].count().sort_values(ascending = False)
+Mice_Drugs
+
+
+# Generate a bar plot showing the total number of rows (Mouse ID/Timepoints) for each drug regimen using Pandas.
+Bar_Chart_Observed = Mice_Drugs.plot(kind='bar', width=0.5)
+
+
+Bar_Chart_Observed.set_xlabel('Drug Regimen')
+Bar_Chart_Observed.set_ylabel('# of Observed Mice Touchpoints')
+
+plt.tight_layout()
+
+
+plt.show()
+
+
+# Generate a bar plot showing the total number of rows (Mouse ID/Timepoints) for each drug regimen using pyplot.
+x_axis = np.arange(len(Mice_Drugs))
+y_axis = list(Mice_Drugs.index.values)
+
+# Create bar chart
+PyBarChart = plt.bar(x_axis, Mice_Drugs, width=.7)
+
+# Set x/y label, title
+plt.xticks(x_axis, y_axis, rotation='vertical')
+plt.xlabel('Drug Regimen')
+plt.ylabel('# of Observed Mouse Timepoints')
+
+# Save bar graph to Images folder
+plt.tight_layout()
+
+
+# Present the bar chart
+plt.show()
+
+# Count mice of each sex
+sex = MinnieDF.groupby('Sex')['Sex'].count()
+sex
+
+# Generate a pie chart
+pie_sex = sex.plot(kind='pie', autopct='%1.1f%%')
+
+
+plt.axis("equal")
+
+
+
+plt.tight_layout()
+
+
+
+plt.show()
+
+# Generate a pie plot showing the distribution of female versus male mice using pyplot
+sex_index = sex.index
+
+
+pie_sex2 = plt.pie(sex, labels = sex_index, autopct="%1.1f%%")
+
+plt.ylabel('Sex')
+plt.axis("equal")
+
+
+
+
+plt.show()
+
+## Quartiles, Outliers and Boxplots
+
+# Calculate the final tumor volume of each mouse across four of the treatment regimens:  
+# Capomulin, Ramicane, Infubinol, and Ceftamin
+final_tumor_vol = MinnieDF.groupby(['Drug Regimen', 'Mouse ID']).last()[['Timepoint', 'Tumor Volume (mm3)']]
+# Start by getting the last (greatest) timepoint for each mouse
+
+
+# Merge this group df with the original DataFrame to get the tumor volume at the last timepoint
+final_tumorDF = final_tumor_vol.reset_index()
+
+# Put treatments into a list for for loop (and later for plot labels)
+regimen = ['Capomulin', 'Ramicane', 'Infubinol', 'Ceftamin']
+
+# Create empty list to fill with tumor vol data (for plotting)
+final_tumor_vol_list = []
+
+# Calculate the IQR and quantitatively determine if there are any potential outliers. 
+for drug in regimen:
+    
+    # Locate the rows which contain mice on each drug and get the tumor volumes
+    final_tumor_vol = final_tumorDF.loc[final_tumorDF['Drug Regimen'] == drug, 'Tumor Volume (mm3)']
+    
+    # add subset 
+    final_tumor_vol_list.append(final_tumor_vol)
+    quartiles = final_tumor_vol.quantile([0.25,0.5,0.75])
+    lowerq = quartiles[0.25]
+    upperq = quartiles[0.75]
+    mean = final_tumor_vol.mean()
+    iqr = upperq-lowerq  
+    lower_bound = lowerq - (1.5*iqr)
+    upper_bound = upperq + (1.5*iqr)
+    
+    # Determine outliers using upper and lower bounds
+    outliers = final_tumor_vol.loc[(final_tumor_vol < lower_bound) 
+                  | (final_tumor_vol > upper_bound)]
+    
+    print(f"{drug}'s potential outliers: outliers are below {lower_bound} and above {upper_bound}")
+
+
+# Generate a box plot that shows the distrubution of the tumor volume for each treatment group.
+fig1, final_tumor_plot = plt.subplots()
+final_tumor_plot.boxplot(final_tumor_vol_list, labels=regimen, flierprops={'markerfacecolor':'r','markersize': 10})
+
+
+final_tumor_plot.set_xlabel('Drug Regimen')
+final_tumor_plot.set_ylabel('Final Tumor Volume (mm3)')
+
+
+plt.tight_layout()
+
+
+
+plt.show()
+
+## Line and Scatter Plots
+
+# Generate a line plot of tumor volume vs. time point for a single mouse treated with Capomulin
+Capomulin_df = MinnieDF.loc[MinnieDF['Drug Regimen'] == 'Capomulin']
+
+
+mouse_id = 'l509'
+mouse_df = Capomulin_df.loc[Capomulin_df['Mouse ID'] == mouse_id]
+
+
+time_vol = plt.plot(mouse_df['Timepoint'], mouse_df['Tumor Volume (mm3)'])
+
+
+plt.title('Capomulin treament of mouse 1509')
+plt.xlabel('Timepoint (days)')
+plt.ylabel('Tumor Volume (mm3)')
+
+
+plt.tight_layout()
+
+
+
+plt.show()
+
+# Generate a scatter plot of mouse weight vs. the average observed tumor volume for the entire Capomulin regimen
+Capomulin_gp = Capomulin_df.groupby('Mouse ID').mean()
+mice_weight_avg = Capomulin_gp['Weight (g)']
+mice_tumor_avg = Capomulin_gp['Tumor Volume (mm3)']
+
+
+plt.scatter(mice_weight_avg, mice_tumor_avg)
+
+
+plt.xlabel('Weight (g)')
+plt.ylabel('Average Tumor Volume (mm3)')
+
+
+
+
+plt.show()
+
+## Correlation and Regression
+
+# Define x,y values
+x_values = mice_weight_avg
+y_values = mice_tumor_avg
+
+# Calculate the correlation
+correlation = round(st.pearsonr(x_values, y_values)[0],2)
+print(f"The correlation between mouse weight and tumor vol is {correlation}")
+
+# Calculate linear regression values
+(slope, intercept, rvalue, pvalue, stderr) = st.linregress(x_values, y_values)
+
+
+# y = mx + b
+regress_values = x_values * slope + intercept
+line_eq = "y = " + str(round(slope,2)) + "x + " + str(round(intercept,2))
+
+# Gernerate scatter chart with liner regression line, equation of line, r-squared value
+plt.scatter(x_values,y_values)
+plt.plot(x_values,regress_values, color='r', alpha=0.7)
+
+
+
+# Define title and x/y labels
+plt.xlabel('Weight (g)')
+plt.ylabel('Average Tumor Volume (mm3)')
+
+
+# Present the box plot chart
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
